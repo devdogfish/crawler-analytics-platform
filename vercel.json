@@ -3,9 +3,15 @@
   "framework": "vite",
   "buildCommand": "pnpm test && pnpm build",
   "outputDirectory": "dist",
+  "fluid": true,
+  "functions": {
+    "api/crawl-replay.ts": {
+      "maxDuration": 40
+    }
+  },
   "rewrites": [
     {
-      "source": "/((?!assets/|sites/|favicon.ico).*)",
+      "source": "/((?!assets/|sites/|favicon.ico|api/crawl-replay(?:/|$)).*)",
       "destination": "/index.html"
     }
   ],

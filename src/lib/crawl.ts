@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { LogLevel, LogLine, Stage } from "@/lib/types";
 import { fmtDur } from "@/lib/types";
 import type { PageRow } from "@/lib/pages";
+import { applySample, REPLAY_INTERVAL_MS, streamReplay, type ReplaySample, type ReplayTransport } from "@/lib/crawl-replay";
 import { DEFAULT_SETTINGS, describeChanges, hostOf, type CrawlSettings } from "@/lib/settings";
 
 // ───────────────────────── One log format for every step ─────────────────────────
@@ -59,7 +60,6 @@ export type RunState = {
 export type FullJob = Stage & { elapsed: number; pagesDone: number; pagesTotal: number };
 export type RunDataset = { pages: PageRow[]; durationSec: number; startedAt: Date; resumed?: { pages: number; elapsed: number; paused: boolean } };
 export const fullAuditDuration = (pages: number) => Math.max(1, pages * 3);
-const TICK_REAL_MS = 250;
 const DT = 2;
 const TAIL_DEFS = [
   { id: "parse", name: "Parse", description: "Extract page metadata and inspectable HTML" },
@@ -116,7 +116,7 @@ function initial(scenario: CrawlScenario, settings: CrawlSettings, dataset: RunD
       samples: fetched.length ? [{ t: elapsed, pagesPerSec: fetched.length / Math.max(1, elapsed), queue: dataset.pages.length - fetched.length, done: fetched.length }] : [],
       logs: [
         logLine(0, "—", "START", `crawl ${settings.url}`, { details: [`${settings.concurrency} workers`, `delay ${settings.delayMs} ms`, `timeout ${settings.timeoutS} s`] }),
-        logLine(0, "—", "SEED", `${n(dataset.pages.length)} saved URLs`, { details: ["simulated run"] }),
+        logLine(0, "—", "SEED", `${n(dataset.pages.length)} saved URLs`, { details: ["capture replay"] }),
         ...fetchedLogs,
       ],
       backoffUntil: null,
@@ -173,7 +173,8 @@ function stepCrawl(c: CrawlState, t: number, scenario: CrawlScenario, s: CrawlSe
     codes[status >= 500 ? "5xx" : status >= 400 ? "4xx" : "2xx"] += 1;
     logs.push(logLine(at(), status, "GET", url, {
       to: clientHop?.to, ms: p.fetchMs ?? undefined,
-      details: [clientHop && `client-side ${clientHop.via}`, p.kind === "server" && `after ${s.maxRetries + 1} attempts`],
+      details: [clientHop && `client-side ${clientHop.via}`, p.kind === "server" && `after ${s.maxRetries + 1} attempts`,
+        p.captured && `${(p.captured.htmlBytes / 1024).toFixed(1)} KiB captured`],
     }));
   }
   if (c.backoffUntil && !limited) logs.push(logLine(t, "—", "THROTTLE", hostOf(s.url), { details: ["recovered", `${Math.round(s.concurrency / 4)} → ${s.concurrency} workers`] }));
@@ -316,15 +317,33 @@ export function archivedRun(status: "success" | "failed" | "cancelled", data: Ru
 
 export function useCrawlRun(scenario: CrawlScenario, dataset: RunDataset, initialSettings: CrawlSettings, archived?: "success" | "failed" | "cancelled") {
   const [state, setState] = useState<RunState>(() => archived ? archivedRun(archived, dataset, initialSettings) : initial(scenario, initialSettings, dataset));
+  const [transport, setTransport] = useState<ReplayTransport>("connecting");
   const failed = state.tail.find((s) => s.status === "failed");
   const done = mainDone(state);
 
-  const ticking = (!done && !state.paused) || state.fullLh?.status === "running";
+  const replaying = !archived && !done && !state.paused;
+  const runningAudit = state.fullLh?.status === "running";
   useEffect(() => {
-    if (!ticking) return;
-    const id = setInterval(() => setState((s) => step(s, scenario)), TICK_REAL_MS);
+    if (!replaying) return;
+    const tick = (sample?: ReplaySample) => setState((run) => {
+      if (sample) {
+        const index = run.dataset.pages.findIndex((page) => page.id === sample.id);
+        if (index >= run.crawl.done) {
+          const pages = run.dataset.pages.slice();
+          pages[index] = applySample(pages[index], sample);
+          run = { ...run, dataset: { ...run.dataset, pages } };
+        }
+      }
+      return step(run, scenario);
+    });
+    return streamReplay(initialSettings.site, tick, setTransport);
+  }, [replaying, scenario, initialSettings.site]);
+
+  useEffect(() => {
+    if (!runningAudit || replaying) return;
+    const id = setInterval(() => setState((s) => step(s, scenario)), REPLAY_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [ticking, scenario]);
+  }, [runningAudit, replaying, scenario]);
 
   const pause = useCallback(() => {
     setState((s) => (s.paused ? s : withEvent({ ...s, paused: true }, logLine(s.t, "—", "PAUSE", currentStage(s) ?? "run", {
@@ -404,7 +423,7 @@ export function useCrawlRun(scenario: CrawlScenario, dataset: RunDataset, initia
     c.status === "cancelled" ? "cancelled" : failed ? "failed" : done ? "success" : state.paused ? "paused" : c.status === "running" ? "crawling" : "processing";
 
   return {
-    state, retry, skipStage, runFullLighthouse, pause, resume, updateSettings,
+    state, transport, retry, skipStage, runFullLighthouse, pause, resume, updateSettings,
     canSkip: !!currentStage(state) && !state.paused, canPause: !done && !failed,
     failed, runStatus, rate, target, crawlPct, crawlEta, runEta, overallPct, errors,
     usualRate: target / expectedCrawlSec, expectedCrawlSec,

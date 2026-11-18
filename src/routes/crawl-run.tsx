@@ -5,8 +5,7 @@
 // Per-page results live in the Pages table, not in the log. Lighthouse runs on a sample by default;
 // a full-site audit is a separate follow-up job that reuses this crawl.
 //
-// PROTOTYPE: data comes from the simulator in src/lib/crawl.ts and src/lib/pages.ts.
-// In the real app it reads the FastAPI endpoints in SPEC.md §6.
+// Demo runs replay the saved site inventory with WebSocket progress and captured responses.
 import { Fragment, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import {
@@ -30,6 +29,7 @@ import { defaultSettings, hostOf, type CrawlSettings } from "@/lib/settings";
 import { SITES, type SiteId } from "@/lib/sites";
 import { useSite } from "@/components/site-context";
 import { fullAuditDuration, useCrawlRun, type CrawlScenario, type FullJob, type RunDataset } from "@/lib/crawl";
+import { savedSamples, type ReplayTransport } from "@/lib/crawl-replay";
 import { PAGE_FILTERS, matches, pageRowsFor, redirectSide, type PageFilter, type PageRow } from "@/lib/pages";
 import { queryString, returnPath } from "@/lib/route-query";
 import { defaultCrawl } from "@/lib/site-pages";
@@ -68,16 +68,19 @@ export default function CrawlRunPage() {
   const site = useSite();
   const rows = crawlsFor(site);
   const row = rows.find((c) => c.id === crawlId);
-  const raw = useSearchParams()[0].get("settings");
+  const [params] = useSearchParams();
+  const raw = params.get("settings");
+  const started = Number(params.get("started"));
+  const startedAt = Number.isSafeInteger(started) && started > 0 && started < 8.64e15 ? started : undefined;
   const settings = row ? defaultSettings(site) : crawlId === String(Number(rows[0].id) + 1) ? replaySettings(raw, site) : null;
   if (!settings) return <Container maxW="7xl" pt="16"><EmptyState.Root><EmptyState.Content>
     <EmptyState.Title>This crawl isn't in the selected site.</EmptyState.Title>
     <EmptyState.Description><RouterLink to={`/${site}/crawls`}>Back to Crawls</RouterLink></EmptyState.Description>
   </EmptyState.Content></EmptyState.Root></Container>;
-  return <CrawlRun key={`${site}:${crawlId}:${raw ?? ""}`} row={row} settings={settings} />;
+  return <CrawlRun key={`${site}:${crawlId}:${startedAt ?? ""}:${raw ?? ""}`} row={row} settings={settings} startedAt={startedAt} />;
 }
 
-function CrawlRun({ row, settings }: { row?: CrawlRow; settings: CrawlSettings }) {
+function CrawlRun({ row, settings, startedAt }: { row?: CrawlRow; settings: CrawlSettings; startedAt?: number }) {
   const archived = row?.status === "success" || row?.status === "failed" || row?.status === "cancelled" ? row.status : undefined;
   const [scenario, setScenario] = useState<CrawlScenario>(archived === "failed" ? "failure" : "healthy");
   const [runKey, setRunKey] = useState(0);
@@ -90,11 +93,19 @@ function CrawlRun({ row, settings }: { row?: CrawlRow; settings: CrawlSettings }
     const fetched = live ? pageRowsFor(settings.site, Number(row.id)) : [];
     const ids = new Set(fetched.map((page) => page.id));
     const stored = new Map(savedPages.map((page) => [page.id, page.performance]));
-    const pages = [...fetched, ...savedPages.filter((page) => !ids.has(page.id))]
+    const pending = savedPages.filter((page) => !ids.has(page.id));
+    if (!live && (!archived || runKey > 0)) {
+      const sampled = savedSamples(settings.site).map((sample) => sample.id);
+      const rank = (id: number) => sampled.includes(id) ? sampled.indexOf(id) : sampled.length;
+      pending.sort((a, b) => rank(a.id) - rank(b.id));
+    }
+    const pages = [...fetched, ...pending]
       .map((page, i) => ({ ...page, n: i + 1, performance: page.performance ?? stored.get(page.id) ?? null }));
     const resumed = live ? { pages: fetched.length, elapsed: row.durationSec, paused: row.status === "paused" } : undefined;
-    return { pages, durationSec: snapshot.durationSec, startedAt: row?.startedAt ?? new Date(), resumed };
-  }, [archived, runKey, row, latest, settings.site]);
+    const playback = live || (archived && !runKey);
+    const start = playback ? row!.startedAt : new Date((runKey === 0 ? startedAt : undefined) ?? Date.now());
+    return { pages, durationSec: playback ? snapshot.durationSec : 96, startedAt: start, resumed };
+  }, [archived, runKey, row, latest, settings.site, startedAt]);
   return (
     <Box bg="bg" minH="100vh">
       <Run key={runKey} scenario={scenario} settings={settings} dataset={dataset} archived={!runKey ? archived : undefined} trigger={row?.trigger ?? "Manual"} onScenario={restart} />
@@ -169,7 +180,8 @@ function Run({ scenario, settings, dataset, archived, trigger, onScenario }: {
 
   return (
     <>
-      <PrototypeBar scenario={scenario} onScenario={onScenario} onSkip={run.skipStage} canSkip={run.canSkip} />
+      <ReplayBar scenario={scenario} onScenario={onScenario} onSkip={run.skipStage} canSkip={run.canSkip}
+        transport={archived ? undefined : run.transport} paused={run.state.paused} />
       <RunHeader run={run} trigger={trigger} onFullLighthouse={() => { run.runFullLighthouse(); setPicked("lighthouse-full"); }} />
       <Container maxW="7xl" py="6">
         <Grid templateColumns={{ base: "1fr", lg: "280px minmax(0, 1fr)" }} gap="6" alignItems="start">
@@ -712,13 +724,15 @@ function Scores({ run, step, onFullLighthouse }: { run: RunView; step: StepInfo;
   );
 }
 
-// PROTOTYPE ONLY: switch simulated scenarios. Not part of the real app, where the run page reads the API.
-function PrototypeBar({ scenario, onScenario, onSkip, canSkip }: {
+function ReplayBar({ scenario, onScenario, onSkip, canSkip, transport, paused }: {
   scenario: CrawlScenario; onScenario: (s: CrawlScenario) => void; onSkip: () => void; canSkip: boolean;
+  transport?: ReplayTransport; paused: boolean;
 }) {
+  const source = transport === "websocket" ? "WebSocket" : transport === "local" ? "Local playback" : "Connecting…";
   return (
     <HStack gap="1" px="4" py="1.5" borderBottomWidth="1px" bg="bg.muted" wrap="wrap">
-      <Text textStyle="xs" fontWeight="semibold" color="fg.subtle" textTransform="uppercase" letterSpacing="wider" me="2">Simulation</Text>
+      <Text textStyle="xs" fontWeight="semibold" color="fg.subtle" me="2">Capture replay</Text>
+      {transport && <Badge size="xs" variant="subtle" colorPalette={transport === "websocket" && !paused ? "green" : "gray"} me="2" role="status">{paused ? "Playback paused" : source}</Badge>}
       {SCENARIOS.map((x) => (
         <Button key={x.v} size="xs" variant={scenario === x.v ? "subtle" : "ghost"} onClick={() => onScenario(x.v)}>{x.label}</Button>
       ))}

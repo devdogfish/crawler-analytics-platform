@@ -140,10 +140,11 @@ function extractFindings(doc) {
   return findings;
 }
 
-async function request(url) {
+async function request(url, redirect = "follow") {
   const start = performance.now();
   const response = await fetch(url, {
     headers: { "User-Agent": "SiteLens portfolio snapshot capture/1.0" },
+    redirect,
     signal: AbortSignal.timeout(18_000),
   });
   const responseMs = Math.round(performance.now() - start);
@@ -151,11 +152,14 @@ async function request(url) {
   return { response, responseMs };
 }
 
-async function capturePage(page) {
-  const { response, responseMs } = await request(page.url);
+async function capturePage(page, { sample = false } = {}) {
+  const { response, responseMs } = await request(page.url, sample ? "error" : "follow");
   if (!response.headers.get("content-type")?.includes("text/html")) throw new Error("Response is not HTML");
   if (new URL(response.url).hostname !== new URL(page.url).hostname) throw new Error(`Unexpected redirected host: ${response.url}`);
-  const dom = new JSDOM(await response.text(), { url: response.url });
+  const html = sample
+    ? Buffer.from(await response.arrayBuffer())
+    : await response.text();
+  const dom = new JSDOM(html, { url: response.url });
   const { document } = dom.window;
   try {
     if (!document.title.trim() || document.body.textContent.trim().length < 200) throw new Error("HTML appears incomplete");
@@ -167,10 +171,40 @@ async function capturePage(page) {
       snapshot: { sourceUrl: page.url, finalUrl: response.url, capturedAt, status: response.status, responseMs, html: dom.serialize() },
       findings,
       styles,
+      htmlBytes: Buffer.isBuffer(html) ? html.length : undefined,
     };
   } finally {
     dom.window.close();
   }
+}
+
+// This mode visits two known public pages per site and downloads no subresources.
+if (process.argv.includes("--sample")) {
+  const samplePageIds = { rbccm: [2, 0], rbcits: [2, 3] };
+  const sample = {
+    provenance: "Four public HTML responses. Response time runs through receipt of HTTP headers. HTML size is decoded body bytes. Finding counts use the static HTML checks.",
+    capturedAt,
+  };
+  for (const site of sites) {
+    sample[site] = {};
+    for (const id of samplePageIds[site]) {
+      const page = inventory[site].find((entry) => entry.id === id);
+      if (!page) throw new Error(`Sample page missing from inventory: ${site}/${id}`);
+      const { snapshot, findings, htmlBytes } = await capturePage(page, { sample: true });
+      const { status, responseMs } = snapshot;
+      sample[site][id] = {
+        url: page.url,
+        status,
+        responseMs,
+        htmlBytes,
+        staticFindingCount: findings.filter((finding) => finding.origin === "static-html").length,
+      };
+      await delay(2_000);
+    }
+  }
+  await writeFile(new URL("live-sample.json", data), JSON.stringify(sample, null, 2) + "\n");
+  console.log("Captured HTTP measurements for four public pages.");
+  process.exit(0);
 }
 
 const snapshots = {};

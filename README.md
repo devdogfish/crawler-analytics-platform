@@ -2,13 +2,14 @@
 
 [Live demo](https://rbc-analytics.demo.girke.dev) · Original UI, captured public pages, sample crawl history.
 
-A Chakra UI v3 crawler dashboard built with React, Vite and React Router. Overview, Pages, Issues and Crawls read the same checked-in JSON records, with shareable filters and drilldowns. The static Vercel deployment needs no database. Ask AI uses scripted answers; the optional Python backend lives in `backend/`.
+A Chakra UI v3 crawler dashboard built with React, Vite and React Router. Overview, Pages, Issues and Crawls read the same checked-in JSON records, with shareable filters and drilldowns. Vercel serves the dashboard and the crawl replay WebSocket without a database. Ask AI uses scripted answers; the optional Python backend lives in `backend/`.
 
 ## Demo data
 
 - `src/data/public-pages.json`: 72 real public page URLs and titles from RBC Capital Markets and RBC Investor Services.
 - `html-snapshots.json`, `html-stylesheets.json`: captured public HTML and deduplicated CSS, with source URLs, capture timestamps, HTTP status and response time. Preview and source use the captured document. Images and fonts load from the original public hosts. Scripts, embedded frames and active form behavior are stripped; the preview is sandboxed.
 - `captured-findings.json`: conservative static HTML checks tied to actual selectors/snippets. Performance findings are explicitly sample data, not measured Lighthouse audits.
+- `live-sample.json`: measured HTTP status, time to headers, decoded HTML size and static finding counts for four public pages. Check each host's `robots.txt` before refreshing with `node scripts/capture-pages.mjs --sample`. The sample makes four requests, spaced two seconds apart.
 - `crawl-history.json`: simulated crawl membership, content changes, error states and lab measurements. Counts, trends, comparisons, response totals and Lighthouse coverage use these records.
 - `traffic.json`: simulated 30-day page views used by the legacy urgency view.
 - `sample-pages.json`, `legacy-audit-findings.json`: QA profiles reuse public captures; four compatibility records retain old demo links and explicitly show unavailable HTML.
@@ -37,7 +38,9 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:5173 (`pnpm dev`; `pnpm build` writes a static `dist/`). It opens the original Overview at `/rbccm/analytics` (or the site you used last). Switch sites with the logo menu in the top-left. Crawl 812 is a sample active run; older crawls open their recorded state. **New crawl** starts a local simulation with your settings.
+Open http://localhost:5173 (`pnpm dev`; `pnpm build` writes the frontend to `dist/`). It opens the original Overview at `/rbccm/analytics` (or the site you used last). Switch sites with the logo menu in the top-left. Crawl 812 is a sample active run; older crawls open their recorded state. Select **New crawl** and **Start crawl** for a replay with incremental request logs, metrics and page rows. The **Pages** tab under **Crawl** shows responses as they arrive.
+
+The replay uses stored pages and measured responses from the small public sample. The WebSocket closes when playback finishes or pauses, with a 30-second server cap. If the stream ends early, local playback continues at the current cursor. Vercel makes zero outbound crawl requests and runs no scheduled crawler jobs.
 
 **The AI** needs two more processes (Python via `uv`, and the Codex CLI signed in, which stands in for the corporate gateway):
 

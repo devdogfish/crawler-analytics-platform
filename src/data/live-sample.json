@@ -1,0 +1,36 @@
+{
+  "provenance": "Four public HTML responses. Response time runs through receipt of HTTP headers. HTML size is decoded body bytes. Finding counts use the static HTML checks.",
+  "capturedAt": "2026-11-18T00:58:42.061Z",
+  "rbccm": {
+    "0": {
+      "url": "https://www.rbccm.com/en/about-us",
+      "status": 200,
+      "responseMs": 308,
+      "htmlBytes": 116554,
+      "staticFindingCount": 1
+    },
+    "2": {
+      "url": "https://www.rbccm.com/en/",
+      "status": 200,
+      "responseMs": 269,
+      "htmlBytes": 81306,
+      "staticFindingCount": 0
+    }
+  },
+  "rbcits": {
+    "2": {
+      "url": "https://www.rbcis.com/en/",
+      "status": 200,
+      "responseMs": 570,
+      "htmlBytes": 51258,
+      "staticFindingCount": 1
+    },
+    "3": {
+      "url": "https://www.rbcis.com/en/who-we-are.page",
+      "status": 200,
+      "responseMs": 306,
+      "htmlBytes": 77227,
+      "staticFindingCount": 1
+    }
+  }
+}

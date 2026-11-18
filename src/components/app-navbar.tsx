@@ -69,7 +69,10 @@ function NewCrawlForSite(props: ButtonProps) {
       <NavAction onClick={() => setOpen(true)} {...props}><LuPlus />New crawl</NavAction>
       <CrawlSettingsDialog
         storageKey={`crawler.ui.new-crawl.${site}.draft`} open={open} onOpenChange={setOpen} mode="create" initial={defaultSettings(site)}
-        onSubmit={(s) => navigate(`/${site}/crawls/${Number(crawlsFor(site)[0].id) + 1}?settings=${encodeURIComponent(JSON.stringify(s))}`)}
+        onSubmit={(s) => {
+          const query = new URLSearchParams({ settings: JSON.stringify(s), started: String(Date.now()) });
+          navigate(`/${site}/crawls/${Number(crawlsFor(site)[0].id) + 1}?${query}`);
+        }}
       />
     </>
   );

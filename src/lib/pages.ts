@@ -26,6 +26,7 @@ export type PageRow = {
   renderMs: number | null;
   performance: number | null;
   note?: string;
+  captured?: { htmlBytes: number; staticFindingCount: number };
 };
 
 export function pageRowsFor(site: SiteId, crawl: number): PageRow[] {

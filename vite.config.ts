@@ -2,6 +2,23 @@ import { fileURLToPath, URL } from "node:url";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import { crawlReplayPath, createCrawlReplaySocketServer } from "./api/crawl-replay.ts";
+
+function crawlReplay(): Plugin {
+  return {
+    name: "crawl-replay",
+    apply: "serve",
+    configureServer(server) {
+      const sockets = createCrawlReplaySocketServer({ noServer: true });
+      server.httpServer?.on("upgrade", (request, socket, head) => {
+        if (request.url?.split("?")[0] !== crawlReplayPath) return;
+        sockets.handleUpgrade(request, socket, head, (client) => {
+          sockets.emit("connection", client, request);
+        });
+      });
+    },
+  };
+}
 
 // DEV ONLY: POST /__proto/<fn> calls an export of src/lib/proto-api.ts (the prototype's data, shaped like the backend's
 // Core) and returns it as JSON. The Python backend's PrototypeCore uses this; delete it with proto-api.ts on integration.
@@ -35,7 +52,7 @@ function protoApi(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), protoApi()],
+  plugins: [react(), crawlReplay(), protoApi()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   // The navigation suite contains a strict latency budget; avoid worker contention.
   test: { include: ["src/**/*.test.{ts,tsx}"], fileParallelism: false },
