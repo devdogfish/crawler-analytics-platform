@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Box, Button, Dialog, Portal } from "@chakra-ui/react";
+import { Box, Button, Dialog, Flex, Portal, Text } from "@chakra-ui/react";
 import type { HeyBuddy } from "getbuddy";
 import { useSite } from "@/components/site-context";
 import { isBoolean, useBrowserState } from "@/lib/browser-state";
@@ -11,23 +11,26 @@ const navigation = (section: string) => [marker(`nav-${section}`), marker("secti
 function hintFor(section: string, detail: string | undefined, search: URLSearchParams) {
   switch (section) {
     case "analytics":
-      return { targets: navigation("crawls"), text: "Open Crawls to see which runs succeeded and what they found." };
+      return { targets: navigation("crawls"), title: "Open Crawls", text: "See which runs succeeded and what they found." };
     case "crawls":
       if (!detail) return {
         targets: [marker("completed-run"), marker("crawl-row")],
-        text: "Open a crawl to inspect its logs and page results.",
+        title: "Open a crawl",
+        text: "Inspect its request logs and page results.",
       };
       if (search.get("tab") !== "pages") return {
         targets: [marker("run-pages"), marker("run-crawl")],
-        text: "Choose the Crawl stage and open its Pages tab to see each HTTP response.",
+        title: "Find the Pages tab",
+        text: "In the Crawl stage, each row shows a URL and its HTTP response.",
       };
-      return { targets: navigation("pages"), text: "Open Pages in the site navigation to compare URLs across crawls." };
+      return { targets: navigation("pages"), title: "Open Pages in the main navigation", text: "Compare URLs across crawls." };
     case "pages":
-      return { targets: navigation("issues"), text: "Open Issues to see which findings affect the most pages." };
+      return { targets: navigation("issues"), title: "Open Issues", text: "See which findings affect the most pages." };
     case "issues":
       return {
         targets: [marker("launch"), marker("start")],
-        text: "Try New crawl, then Start crawl, to watch a replay stream in real time.",
+        title: "Open New crawl",
+        text: "Try a replay and watch the results arrive in real time.",
       };
     default:
       return null;
@@ -69,7 +72,7 @@ export function DemoWalkthrough({ children }: { children: ReactNode }) {
       {children}
       <Dialog.Root open={!seen} onOpenChange={({ open }) => { if (!open) setSeen(true); }} size="sm" placement="center">
         <Portal>
-          <Dialog.Backdrop />
+          <Dialog.Backdrop bg="blackAlpha.300" />
           <Dialog.Positioner>
             <Dialog.Content>
               <Dialog.Header><Dialog.Title>Take a quick tour?</Dialog.Title></Dialog.Header>
@@ -85,20 +88,61 @@ export function DemoWalkthrough({ children }: { children: ReactNode }) {
         </Portal>
       </Dialog.Root>
       {hint && (
-        <WalkthroughHint key={hint.text} text={hint.text} selectors={hint.targets.join(",")} pointer={pointer} finish={finish} />
+        <WalkthroughHint {...hint} pointer={pointer} finish={finish} />
       )}
     </StartWalkthrough.Provider>
   );
 }
 
-function WalkthroughHint({ text, selectors, pointer, finish }: {
+function BuddyAvatar() {
+  const host = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = host.current;
+    if (!container) return;
+    let buddy: HeyBuddy | undefined;
+    let cancelled = false;
+
+    void import("getbuddy").then(async () => {
+      if (cancelled) return;
+      buddy = document.createElement("hey-buddy");
+      buddy.inert = true;
+      Object.assign(buddy.style, { position: "absolute", zIndex: "auto", visibility: "hidden" });
+      buddy.configure({ variant: "wink", size: 36, followEnabled: false, shortcut: "Unidentified" });
+      container.append(buddy);
+      buddy.voiceEnabled = false;
+
+      // Position the package's sprite inside the speech bubble after Lit mounts it.
+      await buddy.updateComplete;
+      if (cancelled) return;
+      const style = document.createElement("style");
+      style.textContent = `
+        .sprite { transform: none !important; filter: none !important; }
+        .pulse { display: none !important; }
+      `;
+      buddy.shadowRoot?.append(style);
+      buddy.style.visibility = "visible";
+    }).catch(() => { buddy?.remove(); });
+
+    return () => {
+      cancelled = true;
+      buddy?.remove();
+    };
+  }, []);
+
+  return <Box ref={host} aria-hidden="true" position="relative" flexShrink={0} boxSize="9" rounded="full" bg="#e4edff" />;
+}
+
+function WalkthroughHint({ title, text, targets, pointer, finish }: {
+  title: string;
   text: string;
-  selectors: string;
+  targets: string[];
   pointer: React.RefObject<Pointer>;
   finish: () => void;
 }) {
   const bubble = useRef<HTMLDivElement>(null);
   const [target, setTarget] = useState<HTMLElement | null>(null);
+  const selectors = targets.join(",");
 
   useLayoutEffect(() => {
     const findTarget = () => {
@@ -120,40 +164,8 @@ function WalkthroughHint({ text, selectors, pointer, finish }: {
   useEffect(() => {
     if (!target) return;
     target.dataset.walkthroughFocus = "";
-    let buddy: HeyBuddy | undefined;
-    let cancelled = false;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!reducedMotion) {
-      void import("getbuddy").then(() => {
-        if (cancelled || !target.isConnected) return;
-        buddy = document.createElement("hey-buddy");
-        buddy.inert = true;
-        buddy.setAttribute("aria-hidden", "true");
-        const accent = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim();
-        buddy.configure({ accent, followEnabled: false, shortcut: "Unidentified" });
-        document.body.append(buddy);
-        buddy.voiceEnabled = false;
-        // The pinned GetBuddy package uses its sprite and tooltip for tours. This
-        // integration uses its spotlight and renders the hint independently.
-        const style = document.createElement("style");
-        style.textContent = `
-          .sprite, .tour-tip, .buddy-bubble { display: none !important; }
-          .tour-highlight {
-            border: 0;
-            box-shadow: 0 0 8px color-mix(in srgb, var(--buddy-accent) 45%, transparent);
-            transition: none;
-          }
-        `;
-        buddy.shadowRoot?.append(style);
-        buddy.startTour([{ selector: "[data-walkthrough-focus]", body: text }]);
-      }).catch(() => { /* The CSS outline also works if the optional package fails to load. */ });
-    }
-    return () => {
-      cancelled = true;
-      buddy?.remove();
-      delete target.dataset.walkthroughFocus;
-    };
-  }, [target, text]);
+    return () => { delete target.dataset.walkthroughFocus; };
+  }, [target]);
 
   useLayoutEffect(() => {
     const panel = bubble.current;
@@ -210,14 +222,22 @@ function WalkthroughHint({ text, selectors, pointer, finish }: {
   return (
     <Portal>
       <style>{`[data-walkthrough-focus] {
-        outline: 2px solid var(--brand) !important;
+        outline: 2px solid light-dark(#005daa, #79b8ff) !important;
         outline-offset: 3px;
       }`}</style>
-      <Box ref={bubble} role="status" aria-label="Tour hint" position="fixed" top="0" left="0"
-        maxW="min(17rem, calc(100vw - 20px))" w="max-content" zIndex="tooltip" pointerEvents="none"
-        bg="bg.panel" borderWidth="1px" borderColor="border" rounded="l3" shadow="lg" px="3" py="2" textStyle="sm">
-        {text}
-      </Box>
+      <Flex ref={bubble} role="status" aria-label="Tour hint" aria-atomic="true" position="fixed" top="0" left="0"
+        w="min(18rem, calc(100vw - 20px))" zIndex="tooltip" pointerEvents="none" align="start" gap="3"
+        bg="#f8faff" color="#111d34" borderWidth="1px" borderColor="#b9cee9" rounded="l3"
+        shadow="0 8px 24px rgb(16 30 56 / 23%)" px="3" py="3">
+        <BuddyAvatar />
+        <Box>
+          <Text fontSize="xs" fontWeight="semibold" color="#315787" lineHeight="short">Buddy</Text>
+          <Text fontSize="sm" fontWeight="bold" mt="0.5" lineHeight="short">
+            {target?.dataset.walkthrough === "launch" ? "Start crawl" : title}
+          </Text>
+          <Text fontSize="sm" color="#364764" mt="1" lineHeight="short">{text}</Text>
+        </Box>
+      </Flex>
       <Button size="xs" variant="outline" bg="bg.panel" position="fixed" bottom="4" right="4" zIndex="overlay" onClick={finish}>
         End tour
       </Button>
