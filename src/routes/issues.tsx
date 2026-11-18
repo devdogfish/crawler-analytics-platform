@@ -90,7 +90,7 @@ function Issues() {
       <Box borderBottomWidth="1px" bg="bg.subtle">
         <Container maxW="7xl" pt="7" pb="5">
           <Flex justify="space-between" align={{ base: "start", md: "center" }} direction={{ base: "column", md: "row" }} gap="4">
-            <Heading size="xl" fontWeight="semibold">Issues</Heading>
+            <Heading data-walkthrough="issues" tabIndex={-1} size="xl" fontWeight="semibold">Issues</Heading>
             <HStack gap="3">
               <CrawlScope crawl={s.crawl} vs={s.vs} onChange={(crawl, vs) => set({ crawl, vs, ...(vs === "none" ? { seg: "all" as Seg } : {}) })} />
             </HStack>

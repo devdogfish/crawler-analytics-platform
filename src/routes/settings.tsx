@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Box, Button, Container, Heading, HStack, RadioCard, Separator, Stack, Text } from "@chakra-ui/react";
 import { LuMonitor, LuMoon, LuSun } from "react-icons/lu";
+import { useStartWalkthrough } from "@/components/demo-walkthrough";
 import { DEFAULT_BRAND, LAYOUTS, applyBrand, savedBrand, useLayout, type Layout } from "@/components/app-shell";
 
 const THEMES = [
@@ -19,6 +20,7 @@ const BRANDS = [
 
 export default function SettingsPage() {
   const { layout, setLayout } = useLayout();
+  const startWalkthrough = useStartWalkthrough();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false); // the saved theme is only known in the browser
   const [brand, setBrand] = useState(DEFAULT_BRAND);
@@ -50,6 +52,10 @@ export default function SettingsPage() {
         <Separator />
         <Row title="Navigation layout" help="Saved in this browser.">
           <Choices value={layout} onChange={(v) => setLayout(v as Layout)} items={LAYOUTS} />
+        </Row>
+        <Separator />
+        <Row title="Demo walkthrough" help="Explore the main screens and see how to start a crawl replay.">
+          <Button size="sm" variant="outline" onClick={startWalkthrough}>Take the tour</Button>
         </Row>
         <Separator />
       </Container>

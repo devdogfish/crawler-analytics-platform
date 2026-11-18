@@ -473,7 +473,7 @@ function StepPane({ run, step, onFullLighthouse }: { run: RunView; step: StepInf
       )}
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} variant="line" size="sm">
-        <Tabs.List px="5" borderTopWidth="1px">
+        <Tabs.List data-walkthrough="run-tabs" tabIndex={-1} px="5" borderTopWidth="1px">
           {tabs.map((t) => (
             <Tabs.Trigger key={t.v} value={t.v}>
               {t.label}

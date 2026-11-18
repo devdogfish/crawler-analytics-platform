@@ -1,5 +1,6 @@
 import { Outlet, useParams } from "react-router";
 import { AppShell } from "@/components/app-shell";
+import { DemoWalkthrough } from "@/components/demo-walkthrough";
 import { SiteProvider } from "@/components/site-context";
 import { SITES, type SiteId } from "@/lib/sites";
 import { NotFound } from "@/routes/not-found";
@@ -10,7 +11,7 @@ export default function SiteLayout() {
   if (!(site in SITES)) return <NotFound />;
   return (
     <SiteProvider site={site as SiteId}>
-      <AppShell><Outlet /></AppShell>
+      <DemoWalkthrough><AppShell><Outlet /></AppShell></DemoWalkthrough>
     </SiteProvider>
   );
 }

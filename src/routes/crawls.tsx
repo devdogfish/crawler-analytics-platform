@@ -65,7 +65,7 @@ export default function CrawlsPage() {
     <Box bg="bg" minH="100vh">
       <Box borderBottomWidth="1px" bg="bg.subtle">
         <Container maxW="7xl" pt="7" pb="5">
-          <Heading size="xl" fontWeight="semibold" mb="5">Crawl history</Heading>
+          <Heading data-walkthrough="history" tabIndex={-1} w="fit-content" size="xl" fontWeight="semibold" mb="5">Crawl history</Heading>
 
           <DataList.Root orientation="vertical" size="sm" display="grid" gridTemplateColumns={{ base: "repeat(2, 1fr)", md: "repeat(4, minmax(0, 1fr))" }} gap="5">
             <Fact label="Running now">{rows.filter(FILTERS[1].match).length}</Fact>
