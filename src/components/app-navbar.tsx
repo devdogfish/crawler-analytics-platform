@@ -31,7 +31,7 @@ export function SiteSwitcher({ logoH = "10", full = false }: { logoH?: string; f
       <Menu.Trigger asChild>
         <Button variant="ghost" colorPalette="gray" h="10" px={full ? "2" : "0"} ms={full ? "-2" : "0"} gap="2"
           _hover={{ bg: "transparent" }} _expanded={{ bg: "transparent" }} w={full ? "calc(100% + 1rem)" : undefined} justifyContent="space-between"
-          aria-label={`${SITES[site].name}: switch site`} data-walkthrough="site">
+          aria-label={`${SITES[site].name}: switch site`}>
           <SiteLogo id={site} h={logoH} />
           <Icon as={LuChevronsUpDown} boxSize="4" color="fg.muted" />
         </Button>

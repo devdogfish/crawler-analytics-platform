@@ -113,7 +113,7 @@ function CompactLayout({ children }: { children: React.ReactNode }) {
                   <Box asChild key={s.id} px="3" py="1.5" rounded="l2" textStyle="sm" fontWeight="medium"
                     color={on ? "fg" : "fg.muted"} bg={on ? "bg.muted" : undefined} _hover={{ color: "fg", bg: "bg.muted" }}
                     aria-current={on ? "page" : undefined}>
-                    <RouterLink to={`/${site}/${s.id}`}>{s.label}</RouterLink>
+                    <RouterLink to={`/${site}/${s.id}`} data-walkthrough={`nav-${s.id}`}>{s.label}</RouterLink>
                   </Box>
                 );
               })}
@@ -146,7 +146,7 @@ function CenterLayout({ children }: { children: React.ReactNode }) {
                   <Box asChild key={s.id} px="3.5" py="1" rounded="full" textStyle="sm" fontWeight="medium"
                     color={on ? "fg" : "fg.muted"} bg={on ? "bg" : undefined} shadow={on ? "xs" : undefined}
                     _hover={{ color: "fg" }} aria-current={on ? "page" : undefined}>
-                    <RouterLink to={`/${site}/${s.id}`}>{s.label}</RouterLink>
+                    <RouterLink to={`/${site}/${s.id}`} data-walkthrough={`nav-${s.id}`}>{s.label}</RouterLink>
                   </Box>
                 );
               })}
@@ -181,7 +181,7 @@ function SideLayout({ children }: { children: React.ReactNode }) {
               <HStack asChild key={s.id} gap="2.5" px="2.5" py="2" rounded="l2" textStyle="sm" fontWeight="medium"
                 color={on ? "fg" : "fg.muted"} bg={on ? "bg.muted" : undefined} _hover={{ bg: "bg.muted", color: "fg" }}
                 aria-current={on ? "page" : undefined}>
-                <RouterLink to={`/${site}/${s.id}`}>
+                <RouterLink to={`/${site}/${s.id}`} data-walkthrough={`nav-${s.id}`}>
                   <Icon as={s.icon} boxSize="4" />
                   {s.label}
                 </RouterLink>
@@ -201,10 +201,10 @@ function SectionMenu() {
   const site = useSite();
   const active = useActiveSection();
   return <Menu.Root>
-    <Menu.Trigger asChild><NavAction w="9" minW="9" h="9" px="0" aria-label="Sections"><LuMenu /></NavAction></Menu.Trigger>
+    <Menu.Trigger asChild><NavAction w="9" minW="9" h="9" px="0" aria-label="Sections" data-walkthrough="sections"><LuMenu /></NavAction></Menu.Trigger>
     <Portal><Menu.Positioner><Menu.Content>
       {SECTIONS.map((section) => <Menu.Item key={section.id} value={section.id} asChild>
-        <RouterLink to={`/${site}/${section.id}`} aria-current={active === section.id ? "page" : undefined}><Icon as={section.icon} />{section.label}</RouterLink>
+        <RouterLink to={`/${site}/${section.id}`} data-walkthrough={`nav-${section.id}`} aria-current={active === section.id ? "page" : undefined}><Icon as={section.icon} />{section.label}</RouterLink>
       </Menu.Item>)}
     </Menu.Content></Menu.Positioner></Portal>
   </Menu.Root>;

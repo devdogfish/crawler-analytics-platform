@@ -389,6 +389,7 @@ function StepButton({ step: s, selected, onSelect }: { step: StepInfo; selected:
       w="full" textAlign="left" px="2" py="2" rounded="l2" position="relative"
       bg={selected ? "bg.muted" : undefined}
       cursor={locked ? "default" : "pointer"}
+      data-walkthrough={s.kind === "crawl" ? "run-crawl" : undefined}
       _hover={locked || selected ? undefined : { bg: "bg.subtle" }}
       aria-current={selected ? "true" : undefined}
     >
@@ -473,9 +474,9 @@ function StepPane({ run, step, onFullLighthouse }: { run: RunView; step: StepInf
       )}
 
       <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} variant="line" size="sm">
-        <Tabs.List data-walkthrough="run-tabs" tabIndex={-1} px="5" borderTopWidth="1px">
+        <Tabs.List px="5" borderTopWidth="1px">
           {tabs.map((t) => (
-            <Tabs.Trigger key={t.v} value={t.v}>
+            <Tabs.Trigger key={t.v} value={t.v} data-walkthrough={t.v === "pages" ? "run-pages" : undefined}>
               {t.label}
               {"count" in t && t.count != null && <Badge size="xs" variant="subtle" colorPalette="gray" fontVariantNumeric="tabular-nums">{fmtNum(t.count)}</Badge>}
             </Tabs.Trigger>

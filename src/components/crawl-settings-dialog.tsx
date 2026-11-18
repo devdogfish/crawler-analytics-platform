@@ -122,7 +122,7 @@ function SettingsForm({ mode, initial, onSubmit, onClose, storageKey }: {
           <>
             <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
             {mode === "paused" && <Button size="sm" variant="outline" disabled={!changed} onClick={() => { onSubmit?.(s, { resume: false }); onClose(); }}>Save</Button>}
-            <Button size="sm" onClick={() => { onSubmit?.(s, { resume: true }); onClose(); }}>
+            <Button size="sm" data-walkthrough={mode === "create" ? "launch" : undefined} onClick={() => { onSubmit?.(s, { resume: true }); onClose(); }}>
               {mode === "create" ? "Start crawl" : "Save and resume"}
             </Button>
           </>
