@@ -44,18 +44,19 @@ export function pageRowsFor(site: SiteId, crawl: number): PageRow[] {
 export const redirectSide = (p: PageRow) =>
   !p.hops.length ? null : p.hops.every((h) => h.side === "server") ? "server" : p.hops.every((h) => h.side === "client") ? "client" : "mixed";
 
-export type PageFilter = "all" | "problems" | "redirects" | "client" | "skipped";
+export type PageFilter = "all" | "problems" | "redirects" | "client" | "server" | "skipped";
 export const PAGE_FILTERS: { v: PageFilter; label: string }[] = [
   { v: "all", label: "All" },
   { v: "problems", label: "Errors" },
   { v: "redirects", label: "Redirects" },
   { v: "client", label: "Client-side" },
+  { v: "server", label: "Server-side" },
   { v: "skipped", label: "Skipped" },
 ];
 export function matches(p: PageRow, f: PageFilter) {
   if (f === "problems") return p.kind === "client" || p.kind === "server" || p.kind === "timeout" || p.kind === "loop";
   if (f === "redirects") return p.kind === "redirect";
-  if (f === "client") return p.kind === "redirect" && redirectSide(p) !== "server";
+  if (f === "client" || f === "server") return p.kind === "redirect" && p.hops.some((hop) => hop.side === f);
   if (f === "skipped") return p.kind === "skipped";
   return true;
 }

@@ -11,26 +11,51 @@ const navigation = (section: string) => [marker(`nav-${section}`), marker("secti
 function hintFor(section: string, detail: string | undefined, search: URLSearchParams) {
   switch (section) {
     case "analytics":
-      return { targets: navigation("crawls"), title: "Open Crawls", text: "See which runs succeeded and what they found." };
+      return { targets: navigation("crawls"), title: "Let’s look at a crawl", text: "This dashboard gives you the big picture. Open Crawls to see what each run found." };
     case "crawls":
       if (!detail) return {
         targets: [marker("completed-run"), marker("crawl-row")],
-        title: "Open a crawl",
-        text: "Inspect its request logs and page results.",
+        title: "Here’s your crawl history",
+        text: "Pick a run to see its logs, timing, and every URL it checked.",
       };
       if (search.get("tab") !== "pages") return {
         targets: [marker("run-pages"), marker("run-crawl")],
-        title: "Find the Pages tab",
-        text: "In the Crawl stage, each row shows a URL and its HTTP response.",
+        title: "See every URL from this run",
+        text: "Open the Pages tab in the Crawl stage to see what happened to each URL.",
       };
-      return { targets: navigation("pages"), title: "Open Pages in the main navigation", text: "Compare URLs across crawls." };
+      switch (search.get("response")) {
+        case "redirects":
+          return {
+            targets: [marker("responses-client")],
+            title: "What sent the browser somewhere else?",
+            text: "Server-side redirects come back as HTTP 3xx responses. Try Client-side to see redirects triggered in the browser.",
+          };
+        case "client":
+          return {
+            targets: [marker("responses-server")],
+            title: "That’s a client-side redirect",
+            text: "The browser follows JavaScript or a meta refresh. Switch to Server-side to see the HTTP version.",
+          };
+        case "server":
+          return {
+            targets: navigation("pages"),
+            title: "That’s a server-side redirect",
+            text: "The server sends a 3xx response with the destination. Open Pages in the main navigation to compare runs.",
+          };
+        default:
+          return {
+            targets: [marker("responses-redirects")],
+            title: "Here’s where you can filter",
+            text: "All shows every URL checked. Try Redirects to see which URLs point somewhere else.",
+          };
+      }
     case "pages":
-      return { targets: navigation("issues"), title: "Open Issues", text: "See which findings affect the most pages." };
+      return { targets: navigation("issues"), title: "Compare pages across crawls", text: "Use the filters above the table to narrow by type, year, or rule. Open Issues when you’re ready." };
     case "issues":
       return {
         targets: [marker("launch"), marker("start")],
-        title: "Open New crawl",
-        text: "Try a replay and watch the results arrive in real time.",
+        title: "Ready to try a crawl?",
+        text: "Pick New crawl to watch a replay stream in real time.",
       };
     default:
       return null;
@@ -164,6 +189,9 @@ function WalkthroughHint({ title, text, targets, pointer, finish }: {
   useEffect(() => {
     if (!target) return;
     target.dataset.walkthroughFocus = "";
+    if (target.dataset.walkthrough?.startsWith("responses-") && target.getBoundingClientRect().right > document.documentElement.clientWidth) {
+      target.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     return () => { delete target.dataset.walkthroughFocus; };
   }, [target]);
 
@@ -221,10 +249,23 @@ function WalkthroughHint({ title, text, targets, pointer, finish }: {
 
   return (
     <Portal>
-      <style>{`[data-walkthrough-focus] {
-        outline: 2px solid light-dark(#005daa, #79b8ff) !important;
-        outline-offset: 3px;
-      }`}</style>
+      <style>{`
+        [data-walkthrough-focus] {
+          --walkthrough-ring: light-dark(#005daa, #79b8ff);
+          outline: 2px solid var(--walkthrough-ring);
+          outline-offset: 3px;
+        }
+        [data-walkthrough-focus][data-walkthrough^="responses-"] {
+          outline-offset: -2px;
+        }
+        @keyframes walkthrough-double-pulse {
+          0%, 12%, 24%, 100% { outline-width: 2px; }
+          6%, 18% { outline-width: 5px; }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          [data-walkthrough-focus] { animation: walkthrough-double-pulse 3.6s ease-in-out infinite; }
+        }
+      `}</style>
       <Flex ref={bubble} role="status" aria-label="Tour hint" aria-atomic="true" position="fixed" top="0" left="0"
         w="min(18rem, calc(100vw - 20px))" zIndex="tooltip" pointerEvents="none" align="start" gap="3"
         bg="#f8faff" color="#111d34" borderWidth="1px" borderColor="#b9cee9" rounded="l3"
@@ -235,7 +276,9 @@ function WalkthroughHint({ title, text, targets, pointer, finish }: {
           <Text fontSize="sm" fontWeight="bold" mt="0.5" lineHeight="short">
             {target?.dataset.walkthrough === "launch" ? "Start crawl" : title}
           </Text>
-          <Text fontSize="sm" color="#364764" mt="1" lineHeight="short">{text}</Text>
+          <Text fontSize="sm" color="#364764" mt="1" lineHeight="short">
+            {target?.dataset.walkthrough === "launch" ? "Once you’re in, the request log and page list will update as responses arrive." : text}
+          </Text>
         </Box>
       </Flex>
       <Button size="xs" variant="outline" bg="bg.panel" position="fixed" bottom="4" right="4" zIndex="overlay" onClick={finish}>

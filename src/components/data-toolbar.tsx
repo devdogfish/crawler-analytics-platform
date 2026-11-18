@@ -1,6 +1,6 @@
 // One toolbar for every data panel (logs, pages): search · filter segments (optional) · count · copy · download
 import { useState } from "react";
-import { HStack, IconButton, Input, InputGroup, SegmentGroup, Text } from "@chakra-ui/react";
+import { Box, HStack, IconButton, Input, InputGroup, SegmentGroup, Text } from "@chakra-ui/react";
 import { LuCheck, LuCopy, LuDownload, LuSearch, LuX } from "react-icons/lu";
 import { Tooltip } from "@/components/ui/tooltip";
 
@@ -10,7 +10,7 @@ export function DataToolbar<V extends string>({
   query: string;
   onQuery: (q: string) => void;
   placeholder: string;
-  segments?: { value: V; label: string }[];
+  segments?: { value: V; label: string; walkthrough?: string }[];
   value?: V;
   onValue?: (v: V) => void;
   count: string;
@@ -34,10 +34,17 @@ export function DataToolbar<V extends string>({
         <Input size="xs" placeholder={placeholder} value={query} onChange={(e) => onQuery(e.target.value)} />
       </InputGroup>
       {segments && (
-        <SegmentGroup.Root size="xs" value={value} onValueChange={(e) => onValue?.(e.value as V)}>
-          <SegmentGroup.Indicator />
-          <SegmentGroup.Items items={segments} />
-        </SegmentGroup.Root>
+        <Box maxW="full" overflowX="auto">
+          <SegmentGroup.Root size="xs" whiteSpace="nowrap" value={value} onValueChange={(e) => onValue?.(e.value as V)}>
+            <SegmentGroup.Indicator />
+            {segments.map((segment) => (
+              <SegmentGroup.Item key={segment.value} value={segment.value} data-walkthrough={segment.walkthrough}>
+                <SegmentGroup.ItemText>{segment.label}</SegmentGroup.ItemText>
+                <SegmentGroup.ItemHiddenInput />
+              </SegmentGroup.Item>
+            ))}
+          </SegmentGroup.Root>
+        </Box>
       )}
       <Text textStyle="xs" color="fg.muted" ms="auto" fontVariantNumeric="tabular-nums" whiteSpace="nowrap">{count}</Text>
       <Tooltip content={copyLabel}>

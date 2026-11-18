@@ -174,6 +174,7 @@ function Run({ scenario, settings, dataset, archived, trigger, onScenario }: {
     const next = new URLSearchParams(params);
     next.set("step", id);
     next.delete("tab");
+    next.delete("response");
     setParams(next, { replace: true });
   };
   const selected = all.find((s) => s.id === (picked ?? active?.id)) ?? active ?? job ?? (archived ? steps[0] : steps[steps.length - 1]);
@@ -428,6 +429,7 @@ function StepPane({ run, step, onFullLighthouse }: { run: RunView; step: StepInf
     const next = new URLSearchParams(params);
     next.set("step", step.id);
     if (value === "logs") next.delete("tab"); else next.set("tab", value);
+    if (value !== "pages") next.delete("response");
     setParams(next, { replace: true });
   };
 
@@ -564,9 +566,10 @@ const SIDE_COLOR = { server: "blue", client: "purple", mixed: "orange" } as cons
 function PagesTable({ pages, done }: { pages: PageRow[]; done: number }) {
   const crawlId = useCrawlId();
   const site = useSite();
-  const search = useSearchParams()[0].toString();
+  const [params, setParams] = useSearchParams();
+  const search = params.toString();
   const from = `/${site}/crawls/${crawlId}${search ? `?${search}` : ""}`;
-  const [filter, setFilter] = useState<PageFilter>("all");
+  const filter = PAGE_FILTERS.find(({ v }) => v === params.get("response"))?.v ?? "all";
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<number | null>(null);
   const [page, setPage] = useState(1);
@@ -578,7 +581,13 @@ function PagesTable({ pages, done }: { pages: PageRow[]; done: number }) {
   const rows = useMemo(() => searched.filter((p) => matches(p, filter)), [searched, filter]);
 
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const changeFilter = (f: PageFilter) => { setFilter(f); setPage(1); setOpen(null); };
+  const changeFilter = (f: PageFilter) => {
+    const next = new URLSearchParams(params);
+    if (f === "all") next.delete("response"); else next.set("response", f);
+    setParams(next, { replace: true });
+    setPage(1);
+    setOpen(null);
+  };
   const changeQuery = (q: string) => { setQuery(q); setPage(1); setOpen(null); };
 
   const toCsv = (ps: PageRow[]) =>
@@ -590,7 +599,7 @@ function PagesTable({ pages, done }: { pages: PageRow[]; done: number }) {
     <Flex direction="column" borderWidth="1px" rounded="l2" overflow="hidden">
       <DataToolbar
         query={query} onQuery={changeQuery} placeholder="Search URLs"
-        segments={PAGE_FILTERS.map((f) => ({ value: f.v, label: `${f.label} ${fmtNum(counts[f.v] ?? 0)}` }))}
+        segments={PAGE_FILTERS.map((f) => ({ value: f.v, label: `${f.label} ${fmtNum(counts[f.v] ?? 0)}`, walkthrough: `responses-${f.v}` }))}
         value={filter} onValue={changeFilter}
         count={query ? `${rows.length.toLocaleString("en-US")} matches` : ""}
         copyLabel="Copy visible URLs" onCopy={() => navigator.clipboard.writeText(rows.map((p) => p.path).join("\n"))}
@@ -602,7 +611,9 @@ function PagesTable({ pages, done }: { pages: PageRow[]; done: number }) {
             <Text textAlign="right">#</Text><Text>URL</Text><Text>Status</Text><Text>Redirect</Text><Text textAlign="right">Fetch</Text><Text textAlign="right">Render</Text><Text>Final URL / note</Text>
           </Grid>
           {rows.length === 0 ? (
-            <Text p="4" textStyle="sm" color="fg.muted">{done ? "No pages match." : "No pages yet."}</Text>
+            <Text p="4" textStyle="sm" color="fg.muted">
+              {done ? (filter === "redirects" || filter === "client" || filter === "server" ? "No recorded redirects match." : "No pages match.") : "No pages yet."}
+            </Text>
           ) : (
             pageRows.map((p) => (
               <PageRowView key={p.n} p={p} href={`/${site}/pages/${p.id}${queryString({ crawl: p.crawl, vs: "none", from })}`} open={open === p.n} onToggle={() => setOpen((o) => (o === p.n ? null : p.n))} />
@@ -610,6 +621,23 @@ function PagesTable({ pages, done }: { pages: PageRow[]; done: number }) {
           )}
         </Box>
       </Box>
+      {done > 0 && rows.length === 0 && !query.trim() && (filter === "redirects" || filter === "client" || filter === "server") && (
+        <Stack gap="2" px="4" py="3" borderTopWidth="1px" bg="bg.subtle" textStyle="sm">
+          <Text fontWeight="semibold">Example redirects</Text>
+          {filter !== "client" && (
+            <Box>
+              <Badge colorPalette="blue" me="2">Server-side · HTTP 301</Badge>
+              <Span fontFamily="mono">/old-contact → /contact</Span>
+            </Box>
+          )}
+          {filter !== "server" && (
+            <Box>
+              <Badge colorPalette="purple" me="2">Client-side · JavaScript</Badge>
+              <Span fontFamily="mono">/welcome → /en/</Span>
+            </Box>
+          )}
+        </Stack>
+      )}
       {rows.length > 0 && (
         <TablePagination count={rows.length} pageSize={PAGE_SIZE} page={page} onPageChange={(p) => { setPage(p); setOpen(null); }} />
       )}

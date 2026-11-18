@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { archivedRun } from "./crawl";
 import { crawlsFor } from "./crawls-list";
-import { pageRowsFor } from "./pages";
+import { matches, pageRowsFor, type Hop, type PageFilter } from "./pages";
 import { pagesFor } from "./site-pages";
 import { getStoredSnapshot } from "./stored-html";
 
@@ -24,4 +24,17 @@ describe("archived crawl replay", () => {
     expect(run.crawl.status === "cancelled").toBe(status === "cancelled");
     expect(run.tail.some((stage) => stage.status === "failed")).toBe(status === "failed");
   });
+});
+
+it("includes mixed redirect chains in both side filters", () => {
+  const page = pageRowsFor("rbccm", 811)[0];
+  const server: Hop = { from: "/old", to: "/intermediate", via: "301", side: "server" };
+  const client: Hop = { from: "/intermediate", to: "/final", via: "JavaScript", side: "client" };
+  const filters: PageFilter[] = ["redirects", "client", "server"];
+  const membership = (hops: Hop[]) => filters.map((filter) => matches({ ...page, kind: "redirect", hops }, filter));
+
+  expect(membership([server])).toEqual([true, false, true]);
+  expect(membership([client])).toEqual([true, true, false]);
+  expect(membership([server, client])).toEqual([true, true, true]);
+  expect(filters.some((filter) => matches(page, filter))).toBe(false);
 });
